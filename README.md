@@ -1,6 +1,5 @@
-# Bugbounty
-100 Security Tools in 100 Days | 58/100 Built | Bug Bounty &amp; SOC Toolkit | Python | Recon, Vuln Scanners, OSINT
-# BugBounty-Toolkit - 100 Security Tools Challenge
+
+# BugBounty-Toolkit - 100 Security Tools Challenege 
 
 > Building 100 Tools in 100 Days | Day 9/100 | Aspiring SOC Analyst
 
