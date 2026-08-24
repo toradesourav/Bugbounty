@@ -1,19 +1,30 @@
+# BugBounty-Toolkit - 100 Security Tools Challenge
 
-# BugBounty-Toolkit - 100 Security Tools Challenege 
+> Building 100 Tools in 100 Days | Day 10/100 | Aspiring SOC Analyst
 
-> Building 100 Tools in 100 Days | Day 9/100 | Aspiring SOC Analyst
+**Progress: 10/100 Tools Built (10%)**
 
-**Progress: 9/100 Tools Built**
+I am building 100 security tools from scratch to become a SOC Analyst. No copy-paste, all tools built and understood by me.
 
-### My 9 Tools So Far:
-1. Api-fuzzer
-2. Cors-check
-3. Csrf-gen
-4. Subdomain-Scanner
-5. Jwt-tools
-6. Port Scanner
-7. Js-secret-finder
-8. Wayback Harvester
-9. Redirect Scanner
+### 🛠️ My 10 Tools So Far:
 
-**Next Target: 15/100 by this week**
+**Recon & Takeover**
+1. Api-fuzzer - Fuzzes API endpoints
+2. Subdomain-Scanner - Finds subdomains
+3. Port Scanner - Fast TCP port scanner
+4. Js-secret-finder - Finds API keys in JS files
+5. Wayback Harvester - Gets old URLs from archive.org
+6. **Subdomain Takeover Checker - NEW! Detects dangling DNS takeover**
+
+**Vuln Scanners**
+7. Cors-check - Checks CORS misconfig
+8. Csrf-gen - Generates CSRF PoC
+9. Jwt-tools - Decodes & tests JWTs
+10. Redirect Scanner - Finds Open Redirect
+
+### How to Use Any Tool
+```bash
+git clone https://github.com/toradesourav/Bugbounty
+cd 10-subdomain-takeover-checker
+python3 subdomain-takeover-checker.py -d sub.example.com
+python3 subdomain-takeover-checker.py -l subs.txt -o results.txt
