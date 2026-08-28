@@ -1,23 +1,81 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
-.vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-files
-*.bclicense
-*.flf
-#Test results file
-TestResults.xml
+import os
+import sys
+import argparse
+import subprocess
+from datetime import datetime
+
+TOOLS_DIR = "tools"
+OUTPUT_DIR = "output"
+
+def setup_args():
+    parser = argparse.ArgumentParser(description="Bug Bounty Automated Tool Launcher")
+    parser.add_argument("-t", "--target", help="Target domain/IP (e.g. target.com)", required=False)
+    parser.add_argument("-l", "--list", help="Path to targets file (e.g. targets.txt)", required=False)
+    return parser.parse_parse_args() if len(sys.argv) > 1 else None
+
+def get_categorized_tools():
+    categories = {}
+    if not os.path.exists(TOOLS_DIR):
+        os.makedirs(TOOLS_DIR)
+        return categories
+
+    for category in os.listdir(TOOLS_DIR):
+        cat_path = os.path.join(TOOLS_DIR, category)
+        if os.path.isdir(cat_path) and not category.startswith('.'):
+            tools = [f for f in os.listdir(cat_path) if not f.startswith('.')]
+            categories[category] = sorted(tools)
+    return categories
+
+def run_bb_tool(tool_path, target, out_dir):
+    cmd = [sys.executable, tool_path]
+    if target:
+        cmd.extend(["--target", target])
+    if out_dir:
+        cmd.extend(["--output", out_dir])
+        
+    print(f"\n[+] Running command: {' '.join(cmd)}\n" + "-" * 50)
+    subprocess.run(cmd)
+
+def main():
+    target = input("Enter Target Domain/URL (e.g., example.com): ").strip() if len(sys.argv) == 1 else ""
+    
+    # Target ke naam par output folder create karna
+    out_dir = ""
+    if target:
+        clean_target = target.replace("https://", "").replace("http://", "").strip("/")
+        out_dir = os.path.join(OUTPUT_DIR, clean_target)
+        os.makedirs(out_dir, exist_ok=True)
+
+    categories = get_categorized_tools()
+    
+    print("\n" + "=" * 50)
+    print("        BUG BOUNTY AUTOMATION FRAMEWORK")
+    print("=" * 50)
+    
+    all_tools = []
+    tool_counter = 1
+
+    for cat, tools in categories.items():
+        print(f"\n Category: {cat.upper().replace('_', ' ')}")
+        for tool in tools:
+            clean_name = tool.replace('.py', '').replace('_', ' ').title()
+            print(f"  [{tool_counter:02d}] {clean_name}")
+            all_tools.append(os.path.join(TOOLS_DIR, cat, tool))
+            tool_counter += 1
+
+    print("\n [00] Exit")
+    print("=" * 50)
+
+    choice = input("\nSelect tool number to run: ").strip()
+    if choice in ['0', '00']:
+        return
+
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(all_tools):
+            run_bb_tool(all_tools[idx], target, out_dir)
+    except ValueError:
+        print("[!] Invalid choice.")
+
+if __name__ == "__main__":
+    main()
