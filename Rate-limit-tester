@@ -1,0 +1,64 @@
+# Rate Limit Tester
+
+Checks whether an endpoint (login, OTP verification, password reset,
+etc.) has rate-limiting or lockout protection, by sending a small,
+fixed number of **identical** requests and watching for a change in
+behavior — HTTP 429, a lockout message, or a CAPTCHA appearing.
+
+## Why identical requests, not a guess list
+This tool sends the **same request body every time** — it is not a
+credential/OTP brute-forcer. The point is purely to test whether
+throttling exists at all. A missing rate limit is itself a reportable
+finding (OWASP API4:2019 — Unrestricted Resource Consumption) without
+ever needing a correct guess to land.
+
+## ⚠️ Authorized use only
+Only use against systems you own or have explicit written permission
+to test. Keep `--count` reasonable — this is a detection test, not a
+load test or an attack.
+
+## Requirements
+```
+pip install requests
+```
+
+## Usage
+```bash
+# Form-encoded login endpoint
+python rate_limit_tester.py --url https://target.com/login \
+  --data "user=test&pass=wrongpass123"
+
+# JSON API, e.g. OTP verification
+python rate_limit_tester.py --url https://target.com/api/otp/verify \
+  --json '{"otp":"000000"}' --header "Content-Type: application/json" --count 20
+
+# Slower pace (some apps rate-limit by requests/minute, not burst)
+python rate_limit_tester.py --url https://target.com/login \
+  --data "user=test&pass=wrong" --count 15 --delay 2
+```
+
+## What it detects
+- `HTTP 429 Too Many Requests`
+- `401`/`403` responses containing lockout-style language
+- Response body keywords: "too many attempts", "rate limit", "try
+  again later", "account locked", "captcha", "slow down", etc.
+
+## Notes
+- If no signal appears, that's a **potential finding**, not a
+  guarantee — some apps rate-limit silently (identical response, but
+  the IP/account gets flagged server-side for later action) or only
+  kick in after a much higher threshold than tested. Always note this
+  caveat in a report rather than claiming certainty.
+- `--delay` matters: some rate limiters count requests per minute, so
+  a fast burst might trigger it while a slower pace might not (or
+  vice versa) — worth testing both.
+
+## Status
+Part of a personal 100-tool security scripting project. Verified
+against two local mock servers: one that returns 429 after 5 attempts
+(correctly detected at attempt 6), and one with no rate limiting at
+all (correctly flagged as a potential finding after all 10 requests).
+
+## License
+MIT
+
