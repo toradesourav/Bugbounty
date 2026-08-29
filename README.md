@@ -1,46 +1,47 @@
-# Payload Encoder
+# DNS Lookup Tool
 
-A multi-format encoder/decoder for security testing — functionally
-similar to Burp Suite's "Decoder" tab. Transforms text between common
-encodings used when testing input handling and filter bypass (a WAF
-or validation layer often only decodes one layer, so double-encoding
-or an unexpected format sometimes slips past it).
-
-This tool only transforms text between encodings; it does not
-generate exploit code or attack payloads itself.
+Looks up DNS records for a domain: A, AAAA, MX, TXT, NS, CNAME, SOA.
+Uses `dnspython` for full record-type support when installed, and
+falls back to Python's built-in `socket` module (A/CNAME only) with
+zero dependencies if `dnspython` isn't available — so it always works,
+just with less detail without the extra package.
 
 ## Requirements
-Python 3 standard library only — no `pip install` needed.
+```
+pip install dnspython   # optional, for full record-type support
+```
+Works with zero dependencies too (A/CNAME records only, via stdlib
+`socket`).
 
 ## Usage
 ```bash
-# Encode
-python payload_encoder.py --encode base64 --text "<script>alert(1)</script>"
-python payload_encoder.py --encode url --text "<script>"
-python payload_encoder.py --encode html --text "<img src=x onerror=alert(1)>"
-python payload_encoder.py --encode hex --text "test123"
+# All default record types
+python dns_lookup.py target.com
 
-# Decode
-python payload_encoder.py --decode base64 --text "PHNjcmlwdD4="
-python payload_encoder.py --decode url --text "%3Cscript%3E"
+# Specific record types only
+python dns_lookup.py target.com --types A MX TXT
 
-# Double-encode (e.g. to test WAFs that only decode once)
-python payload_encoder.py --encode url --text "<script>" --double
-
-# Pipe input instead of --text
-echo -n "some text" | python payload_encoder.py --encode base64
+# Custom timeout
+python dns_lookup.py target.com --timeout 10
 ```
 
-## Supported formats
-`base64`, `url`, `url-plus` (space → `+`), `html` (entity escaping),
-`hex`, `unicode` (`\uXXXX` escapes), `rot13`, `ascii-decimal`
-(space-separated char codes).
+## Why this over a one-liner `socket.gethostbyname`
+- `MX` records reveal the mail provider (useful for phishing-sim
+  scoping and email-security recon).
+- `TXT` records often contain SPF/DKIM/DMARC policy, domain
+  verification strings, and sometimes leaked internal info.
+- `NS` records confirm the authoritative nameservers — useful before
+  a subdomain-takeover check.
+- `SOA` gives you the zone's primary nameserver and refresh/retry
+  timers.
 
 ## Status
-Part of a personal 100-tool security scripting project. Every format
-tested with an encode/decode round-trip, double-encoding verified on
-URL encoding, stdin piping verified, and malformed input (invalid
-base64) confirmed to fail with a clear error instead of crashing.
+Part of a personal 100-tool security scripting project. The
+zero-dependency socket fallback path was verified with a mocked
+resolution. The `dnspython`-based multi-record path is standard
+library usage of a well-established package but wasn't independently
+re-verified in this environment — run once against a known domain to
+confirm.
 
 ## License
 MIT
