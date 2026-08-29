@@ -1,47 +1,48 @@
-# DNS Lookup Tool
+# JS Secret Scanner
 
-Looks up DNS records for a domain: A, AAAA, MX, TXT, NS, CNAME, SOA.
-Uses `dnspython` for full record-type support when installed, and
-falls back to Python's built-in `socket` module (A/CNAME only) with
-zero dependencies if `dnspython` isn't available — so it always works,
-just with less detail without the extra package.
+Scans JavaScript files (remote or local) for hardcoded secrets using a
+curated set of regex signatures: AWS keys, Google API keys, Stripe
+keys, GitHub tokens, Slack tokens, private key blocks, JWTs, and
+generic key/token/password assignments.
+
+## ⚠️ Authorized use only
+Only scan JS files belonging to systems you own or have explicit
+written permission to test.
 
 ## Requirements
 ```
-pip install dnspython   # optional, for full record-type support
+pip install requests
 ```
-Works with zero dependencies too (A/CNAME records only, via stdlib
-`socket`).
 
 ## Usage
 ```bash
-# All default record types
-python dns_lookup.py target.com
+# Scan a single remote JS file
+python js_secret.py --url https://target.com/static/app.js
 
-# Specific record types only
-python dns_lookup.py target.com --types A MX TXT
+# Scan a list of JS URLs (one per line) — pair well with 58-wayback --ext js
+python js_secret.py --url-list js_urls.txt
 
-# Custom timeout
-python dns_lookup.py target.com --timeout 10
+# Scan a local file
+python js_secret.py --file app.js
 ```
 
-## Why this over a one-liner `socket.gethostbyname`
-- `MX` records reveal the mail provider (useful for phishing-sim
-  scoping and email-security recon).
-- `TXT` records often contain SPF/DKIM/DMARC policy, domain
-  verification strings, and sometimes leaked internal info.
-- `NS` records confirm the authoritative nameservers — useful before
-  a subdomain-takeover check.
-- `SOA` gives you the zone's primary nameserver and refresh/retry
-  timers.
+## Signatures detected
+AWS Access Key ID, AWS Secret Key (heuristic), Google API Key,
+Firebase URL, Slack Token, Stripe Key, GitHub Token, Generic Bearer
+Token, PEM Private Key Block, Generic API-key/secret/token/password
+assignment, JWT-looking strings.
+
+## Notes
+- Regex-based detection **will** produce false positives (test
+  fixtures, placeholder strings, minified variable names that happen
+  to match). Always verify a hit before reporting it.
+- Pairs well with the Wayback URL Harvester (tool #58): filter for
+  `--ext js` there, feed the list here with `--url-list`.
 
 ## Status
-Part of a personal 100-tool security scripting project. The
-zero-dependency socket fallback path was verified with a mocked
-resolution. The `dnspython`-based multi-record path is standard
-library usage of a well-established package but wasn't independently
-re-verified in this environment — run once against a known domain to
-confirm.
+Part of a personal 100-tool security scripting project. Verified
+against a synthetic JS file with planted secrets covering every
+signature — all correctly detected.
 
 ## License
 MIT
