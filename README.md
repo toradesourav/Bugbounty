@@ -1,64 +1,46 @@
-# S3 Bucket Scanner
+# Payload Encoder
 
-Checks S3 buckets for public-read misconfigurations. Two modes: check
-a specific list of bucket names/URLs, or auto-generate common
-naming-convention permutations from a company/project keyword (since
-bucket names are globally unique, and predictable patterns like
-`company-backup` or `company-dev` are extremely common
-misconfigurations found in bug bounty recon).
+A multi-format encoder/decoder for security testing — functionally
+similar to Burp Suite's "Decoder" tab. Transforms text between common
+encodings used when testing input handling and filter bypass (a WAF
+or validation layer often only decodes one layer, so double-encoding
+or an unexpected format sometimes slips past it).
 
-This tool only sends **read-only GET requests**. It does not attempt
-to write, upload, or delete anything — testing write-access would
-need separate, explicit authorization even within an authorized
-engagement.
-
-## ⚠️ Authorized use only
-Only use against buckets you own or have explicit written permission
-to test.
+This tool only transforms text between encodings; it does not
+generate exploit code or attack payloads itself.
 
 ## Requirements
-```
-pip install requests
-```
+Python 3 standard library only — no `pip install` needed.
 
 ## Usage
 ```bash
-# Auto-generate 50+ common name permutations from a keyword
-python s3_scanner.py --keyword acmecorp
+# Encode
+python payload_encoder.py --encode base64 --text "<script>alert(1)</script>"
+python payload_encoder.py --encode url --text "<script>"
+python payload_encoder.py --encode html --text "<img src=x onerror=alert(1)>"
+python payload_encoder.py --encode hex --text "test123"
 
-# Specific region
-python s3_scanner.py --keyword acmecorp --region eu-west-1
+# Decode
+python payload_encoder.py --decode base64 --text "PHNjcmlwdD4="
+python payload_encoder.py --decode url --text "%3Cscript%3E"
 
-# Check a specific list of bucket names or full URLs
-python s3_scanner.py --bucket-list buckets.txt
+# Double-encode (e.g. to test WAFs that only decode once)
+python payload_encoder.py --encode url --text "<script>" --double
 
-# Show every result, not just public/private hits
-python s3_scanner.py --keyword acmecorp --show-all
+# Pipe input instead of --text
+echo -n "some text" | python payload_encoder.py --encode base64
 ```
 
-## Verdicts
-| Verdict | Meaning |
-|---|---|
-| `PUBLIC_LISTABLE` | Bucket contents are publicly listable — high severity, report immediately |
-| `EXISTS_PRIVATE` | Bucket exists (403), listing denied — still worth checking if individual objects are directly readable |
-| `NOT_FOUND` | `NoSuchBucket` — the name is available; interesting for takeover if something still references it |
-| `OTHER` | Unexpected status code, review manually |
-
-## Notes
-- A `403` doesn't mean the bucket is fully secure — individual objects
-  can still have public-read ACLs even when bucket listing is denied.
-  This tool only checks the listing; testing individual known object
-  paths is a separate step.
-- `--keyword` generates ~50 permutations by default (dev/prod/staging/
-  backup/assets/etc. combined as both suffix and prefix). Feed your
-  own list via `--bucket-list` for a larger or more targeted wordlist.
+## Supported formats
+`base64`, `url`, `url-plus` (space → `+`), `html` (entity escaping),
+`hex`, `unicode` (`\uXXXX` escapes), `rot13`, `ascii-decimal`
+(space-separated char codes).
 
 ## Status
-Part of a personal 100-tool security scripting project. Bucket-name
-generation and URL formatting verified directly. Full scan behavior
-verified against three mock servers simulating a public-listable
-bucket, a private (403) bucket, and a nonexistent (`NoSuchBucket`)
-bucket — all three correctly classified.
+Part of a personal 100-tool security scripting project. Every format
+tested with an encode/decode round-trip, double-encoding verified on
+URL encoding, stdin piping verified, and malformed input (invalid
+base64) confirmed to fail with a clear error instead of crashing.
 
 ## License
 MIT
