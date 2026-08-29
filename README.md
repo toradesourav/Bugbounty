@@ -1,48 +1,54 @@
-# Wayback URL Harvester
+# Hash Identifier & Cracker
 
-Pulls historical URLs for a domain from the Internet Archive's Wayback
-Machine CDX API. Classic recon step for finding old/forgotten
-endpoints, exposed backup files, JS files with hardcoded secrets, or
-admin panels that may still be reachable but no longer linked
-anywhere.
+Identifies the likely algorithm behind a hash (by length and
+character-set pattern) and, if a wordlist is provided, attempts a
+dictionary attack — the same principle as `hashid` plus a basic
+dictionary mode of `hashcat`.
 
-## ⚠️ Authorized use only
-Only use against domains you own or have explicit written permission
-to test/recon.
+## Scope
+This only runs dictionary lookups against hashes you already have
+(from an authorized pentest engagement, a CTF, your own test data,
+etc.). It does not attack a live authentication system, does not
+brute-force character-by-character, and does not attempt to bypass
+any rate limiting.
 
 ## Requirements
-```
-pip install requests
-```
+Python 3 standard library only — no `pip install` needed.
 
 ## Usage
 ```bash
-# All archived URLs for a domain (incl. subdomains)
-python wayback.py --domain target.com
+# Identify only (no wordlist)
+python hash_identifier.py --hash 5f4dcc3b5aa765d61d8327deb882cf99
 
-# Only JavaScript files
-python wayback.py --domain target.com --ext js --output js_urls.txt
+# Identify + dictionary crack
+python hash_identifier.py --hash 5f4dcc3b5aa765d61d8327deb882cf99 --wordlist rockyou-sample.txt
 
-# Only URLs containing "admin"
-python wayback.py --domain target.com --keyword admin
-
-# Exact domain only, no subdomains
-python wayback.py --domain target.com --no-subdomains
+# Batch mode
+python hash_identifier.py --hash-list hashes.txt --wordlist wordlist.txt
 ```
 
+## Algorithms detected
+MD5, SHA-1, SHA-224, SHA-256, SHA-384, SHA-512 (all crackable via
+dictionary), plus format-only identification for NTLM (same length as
+MD5 — context needed to tell them apart), bcrypt, and MySQL 4.1+
+password hashes.
+
 ## Notes
-- Uses the public `web.archive.org/cdx/search/cdx` endpoint — no API
-  key required, but be considerate of request volume.
-- Large/popular domains can return tens of thousands of URLs; use
-  `--ext` / `--keyword` to narrow results.
-- This only lists URLs that were *archived* at some point — always
-  verify liveness separately (e.g. a simple status-code check) before
-  treating a result as a current finding.
+- MD5 and NTLM hashes are the same length and character set, so both
+  are listed as possible matches — the tool tries cracking as MD5
+  first since that's far more common outside Windows environments.
+- bcrypt/MySQL hashes are identified by format but not crackable here
+  — bcrypt's per-hash salt and deliberate slowness need a dedicated
+  tool (e.g. `hashcat` with GPU support) for practical dictionary
+  attacks.
 
 ## Status
-Part of a personal 100-tool security scripting project. Script logic
-verified (argument parsing, filtering, output writing); the live CDX
-API call should be tested with an active internet connection.
+Part of a personal 100-tool security scripting project. Verified
+against real hashes of a known plaintext across all 6 crackable
+algorithms (MD5 through SHA-512) — each correctly identified and
+successfully cracked via a small test wordlist containing the
+plaintext among distractors. bcrypt format detection verified against
+a correctly-shaped sample string.
 
 ## License
 MIT
