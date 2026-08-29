@@ -1,13 +1,14 @@
-# JS Secret Scanner
+# Wayback URL Harvester
 
-Scans JavaScript files (remote or local) for hardcoded secrets using a
-curated set of regex signatures: AWS keys, Google API keys, Stripe
-keys, GitHub tokens, Slack tokens, private key blocks, JWTs, and
-generic key/token/password assignments.
+Pulls historical URLs for a domain from the Internet Archive's Wayback
+Machine CDX API. Classic recon step for finding old/forgotten
+endpoints, exposed backup files, JS files with hardcoded secrets, or
+admin panels that may still be reachable but no longer linked
+anywhere.
 
 ## ⚠️ Authorized use only
-Only scan JS files belonging to systems you own or have explicit
-written permission to test.
+Only use against domains you own or have explicit written permission
+to test/recon.
 
 ## Requirements
 ```
@@ -16,33 +17,32 @@ pip install requests
 
 ## Usage
 ```bash
-# Scan a single remote JS file
-python js_secret.py --url https://target.com/static/app.js
+# All archived URLs for a domain (incl. subdomains)
+python wayback.py --domain target.com
 
-# Scan a list of JS URLs (one per line) — pair well with 58-wayback --ext js
-python js_secret.py --url-list js_urls.txt
+# Only JavaScript files
+python wayback.py --domain target.com --ext js --output js_urls.txt
 
-# Scan a local file
-python js_secret.py --file app.js
+# Only URLs containing "admin"
+python wayback.py --domain target.com --keyword admin
+
+# Exact domain only, no subdomains
+python wayback.py --domain target.com --no-subdomains
 ```
 
-## Signatures detected
-AWS Access Key ID, AWS Secret Key (heuristic), Google API Key,
-Firebase URL, Slack Token, Stripe Key, GitHub Token, Generic Bearer
-Token, PEM Private Key Block, Generic API-key/secret/token/password
-assignment, JWT-looking strings.
-
 ## Notes
-- Regex-based detection **will** produce false positives (test
-  fixtures, placeholder strings, minified variable names that happen
-  to match). Always verify a hit before reporting it.
-- Pairs well with the Wayback URL Harvester (tool #58): filter for
-  `--ext js` there, feed the list here with `--url-list`.
+- Uses the public `web.archive.org/cdx/search/cdx` endpoint — no API
+  key required, but be considerate of request volume.
+- Large/popular domains can return tens of thousands of URLs; use
+  `--ext` / `--keyword` to narrow results.
+- This only lists URLs that were *archived* at some point — always
+  verify liveness separately (e.g. a simple status-code check) before
+  treating a result as a current finding.
 
 ## Status
-Part of a personal 100-tool security scripting project. Verified
-against a synthetic JS file with planted secrets covering every
-signature — all correctly detected.
+Part of a personal 100-tool security scripting project. Script logic
+verified (argument parsing, filtering, output writing); the live CDX
+API call should be tested with an active internet connection.
 
 ## License
 MIT
