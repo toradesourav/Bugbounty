@@ -1,1 +1,56 @@
-checks flags + Shannon-entropy analysis to detect predictable/weak session tokens
+
+# Cookie Analyzer
+
+Analyzes cookies set by a URL for security issues: missing
+Secure/HttpOnly/SameSite flags, overly broad Domain scope, and
+weak-looking session-token randomness (short, sequential, or
+low-entropy values that suggest a predictable session-ID generator).
+
+## Requirements
+```
+pip install requests
+```
+
+## Usage
+```bash
+# Single request
+python cookie_analyzer.py --url https://target.com/login
+
+# Fetch multiple times and compare session-cookie values for randomness
+python cookie_analyzer.py --url https://target.com/login --compare-requests 5
+```
+
+## What it checks
+**Flags (every cookie):** Secure, HttpOnly, SameSite (including the
+invalid `SameSite=None` without `Secure` combination), and overly
+broad `Domain` scope.
+
+**Value quality (cookies whose name looks session-related — matches
+`session`, `token`, `auth`, `sid`, `jwt`, etc.):**
+- Length under 16 characters
+- Shannon entropy under 2.5 bits/char (suggests predictable/sequential
+  values rather than cryptographically random ones)
+- Purely numeric values (classic sign of an incrementing session ID)
+- With `--compare-requests`, whether the value actually changes across
+  separate requests (a session ID that never changes may indicate the
+  server isn't regenerating it per session)
+
+## Notes
+- Entropy is a heuristic, not proof — a low-entropy value is *worth
+  investigating*, not automatically exploitable. Confirm by observing
+  multiple real session IDs and checking for an actual predictable
+  pattern (incrementing, timestamp-based, etc.) before reporting.
+- Non-session cookies (e.g. `theme=dark`) still get flag-based checks,
+  since even non-sensitive cookies missing `Secure`/`HttpOnly` can
+  matter depending on context — but they're not checked for entropy.
+
+## Status
+Part of a personal 100-tool security scripting project. Verified
+against a local mock server serving three cookie types simultaneously:
+a weak sequential-numeric session cookie (correctly flagged for
+missing flags, short length, and low entropy), a strong random-hex
+cookie with all flags set (correctly passed clean), and a non-session
+cookie missing flags (correctly flagged for flags only, not value).
+
+## License
+MIT
