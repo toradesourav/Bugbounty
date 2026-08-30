@@ -1,0 +1,64 @@
+GraphQL Scanner — detects introspection exposure, flags sensitive-sounding queries/mutations for review
+# GraphQL Scanner
+
+Checks a GraphQL endpoint for the most common real-world
+misconfiguration: **introspection left enabled in production**. If
+introspection succeeds, an attacker gets the entire schema for free —
+every type, query, mutation, and field — normally the hardest part of
+testing an unfamiliar API. Also flags query/mutation names that sound
+sensitive (`delete`, `admin`, `role`, `password`, etc.) for manual
+follow-up.
+
+## ⚠️ Authorized use only
+Only use against endpoints you own or have explicit written
+permission to test.
+
+## Requirements
+```
+pip install requests
+```
+
+## Usage
+```bash
+# Basic scan
+python graphql_scanner.py --url https://target.com/graphql
+
+# With an auth header (some APIs only expose introspection to logged-in users)
+python graphql_scanner.py --url https://target.com/graphql --header "Authorization: Bearer xyz"
+
+# List every query/mutation name, not just sensitive-looking ones
+python graphql_scanner.py --url https://target.com/graphql --show-all-fields
+```
+
+## How it works
+1. Sends the standard GraphQL introspection query (`__schema`) as a
+   POST request.
+2. If the server returns the full schema, introspection is enabled —
+   flagged as high severity, since it hands over the API's entire
+   attack surface.
+3. If the server returns a GraphQL error instead (`"errors"` with no
+   `__schema` data), introspection is correctly disabled.
+4. Every query/mutation field name is checked against a list of
+   sensitive-sounding keywords (`delete`, `admin`, `role`, `password`,
+   `token`, `bypass`, `internal`, etc.) — these get surfaced first
+   since they're the highest-value targets for follow-up manual
+   testing (auth checks, IDOR, mass assignment).
+
+## Notes
+- A disabled introspection response isn't a guarantee of security —
+  it just means you'll need to build the schema manually (e.g. from
+  client-side JS bundles, API docs, or guessing common field names).
+- Finding a sensitive-sounding mutation via introspection doesn't
+  confirm it's exploitable — it tells you where to focus manual
+  authorization testing next (does `deleteUser` check that the caller
+  owns the account being deleted?).
+
+## Status
+Part of a personal 100-tool security scripting project. Verified
+against two mock GraphQL endpoints: one with introspection enabled
+(correctly extracted schema, correctly flagged `deleteUser`,
+`updateUserRole`, and `adminGetAllUsers` as sensitive) and one with
+introspection disabled (correctly reported safe).
+
+## License
+MIT
