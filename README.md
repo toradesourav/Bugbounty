@@ -1,58 +1,63 @@
-# Bugbounty Toolkit — by Sourav Torade
+# WAF Detector
 
-A collection of security recon, vulnerability-testing, and blue-team
-scripts, each in its own folder with source + README. Built as part
-of a personal 100-tool challenge.
+Identifies which Web Application Firewall (if any) sits in front of a
+target, using two techniques:
 
-⚠️ All tools are for use only against systems you own or have
-explicit written authorization to test.
+1. **Passive header/cookie fingerprinting** — checks the normal
+   response for WAF-specific signatures (Cloudflare's `cf-ray`,
+   Sucuri's `X-Sucuri-ID`, Incapsula's `visid_incap` cookie, etc.).
+2. **Active provocation** — sends a deliberately malicious-looking
+   request (classic SQLi + XSS + path-traversal payload combined) and
+   checks whether the WAF blocks it with a recognizable challenge/
+   block page. Many WAFs stay completely invisible on clean requests
+   and only reveal themselves when provoked.
 
-## Recon
-| # | Tool | Description |
-|---|---|---|
-| 01 | [API Fuzzer](./01-api-fuzzer) | Multi-threaded REST API fuzzer with FUZZ-marker payload substitution |
-| 06 | [Wayback Fetcher](./06-wayback-fetcher) | Pulls historical URLs for a domain from the Wayback Machine CDX API |
-| 09 | [Dir Finder](./09-dir-finder) | Multi-threaded sensitive-path/file brute-forcer |
-| 11 | [Whois Lookup](./11-whois-lookup) | Direct IANA→registry WHOIS queries over raw sockets |
-| 12 | [DNS Lookup](./12-dns-lookup) | A/AAAA/MX/TXT/NS/CNAME/SOA record lookup |
-| 13 | [HTTP Header Analyzer](./13-http-header-analyzer) | Grades security headers, flags info-disclosure & weak cookies |
-| 15 | [Screenshot Taker](./15-screenshot-taker) | Headless-browser bulk visual recon |
-| 19 | [Tech Stack Detector](./19-tech-stack-detector) | Wappalyzer-style technology fingerprinting |
-| 21 | [Subdomain Finder](./21-subdomain-finder) | crt.sh + wordlist DNS brute-force subdomain enumeration |
-| 23 | [Recon Toolkit Installer](./23-recon-toolkit-installer) | Installs jadx, apktool, subfinder, httpx from official sources |
+Knowing the WAF in front of a target tells you what evasion research
+to focus on, and sets realistic expectations for how aggressive
+scanning can be before you get blocked entirely.
 
-## Vulnerability Testing
-| # | Tool | Description |
-|---|---|---|
-| 02 | [JWT Tool](./02-jwt-tool) | Decode, alg=none check, HMAC secret crack, forge alg=none |
-| 03 | [CSRF Generator](./03-csrf-generator) | Auto-submitting HTML/JS PoC generator for CSRF findings |
-| 04 | [CORS Checker](./04-cors-checker) | Detects reflected-origin, credentialed-wildcard CORS misconfigs |
-| 05 | [Open Redirect Scanner](./05-open-redirect-scanner) | Tests URL params against 10 open-redirect bypass techniques |
-| 07 | [JS Secret Scanner](./07-js-secret-scanner) | Scans JS files for hardcoded API keys/tokens (11 signatures) |
-| 08 | [Email Harvester](./08-email-harvester) | Extracts emails from pages with obfuscation handling |
-| 14 | [XSS Param Finder](./14-xss-param-finder) | Flags unescaped parameter reflections as candidate XSS |
-| 18 | [Broken Link Hijack Finder](./18-broken-link-hijack-finder) | Finds dangling external resource references (GitHub Pages, S3, expired domains) |
-| 20 | [S3 Bucket Scanner](./20-s3-bucket-scanner) | Read-only public-bucket detector with naming permutation generator |
+## ⚠️ Authorized use only
+Only use against systems you own or have explicit written permission
+to test. The provocation payload is designed to trigger WAF rules,
+not to exploit anything — but sending it still counts as an attack
+signature on the wire, so don't run this against anything you're not
+authorized to test.
 
-## Utilities
-| # | Tool | Description |
-|---|---|---|
-| 16 | [Payload Encoder](./16-payload-encoder) | Multi-format encode/decode (base64, URL, HTML, hex, unicode, ROT13) |
+## Requirements
+```
+pip install requests
+```
 
-## Blue Team / SOC
-| # | Tool | Description |
-|---|---|---|
-| 10 | [SOC Log Analyzer](./10-soc-log-analyzer) | Brute-force detection from auth logs, threshold + time-window burst detection |
-| 17 | [YARA Rule Tester](./17-yara-rule-tester) | Compiles and tests YARA detection rules against files |
-| 22 | [Hash Identifier & Cracker](./22-hash-identifier) | Identifies hash algorithm, dictionary-attack cracking |
+## Usage
+```bash
+python waf_detector.py --url https://target.com
+
+# Passive-only (skip sending the malicious provocation payload)
+python waf_detector.py --url https://target.com --skip-provocation
+```
+
+## WAFs detected
+Cloudflare, Sucuri, Akamai, Imperva/Incapsula, AWS WAF/CloudFront,
+F5 BIG-IP ASM, Barracuda, Fortinet FortiWeb, Citrix NetScaler,
+Wordfence, and generic ModSecurity-style block pages.
+
+## Notes
+- A clean/no-match result does **not** guarantee there's no WAF —
+  some are configured to be silent, or use signatures not in this
+  tool's list. Treat "no WAF detected" as "no *known* WAF detected."
+- A status-code change on the provocation request (e.g. 200 → 403)
+  without a specific signature match is still a useful signal: some
+  filter/WAF is present, just not one this tool recognizes by name.
 
 ## Status
-Every tool above (except YARA Rule Tester, which needs `yara-python`
-installed to run, and the Recon Toolkit Installer's live download
-steps) was tested end-to-end against local mock servers or synthetic
-data during development. See each tool's own README for exactly what
-was verified.
+Part of a personal 100-tool security scripting project. Verified
+against three local mock scenarios: a Cloudflare-style WAF (correctly
+identified via headers, cookies, and a status-code change on the
+malicious payload), a plain server with no WAF (correctly reported no
+match), and an unlisted/generic WAF that blocks with a 403 but no
+recognizable signature (correctly flagged as "a filter is present,
+just not a recognized one" rather than a false negative or false
+positive).
 
 ## License
-MIT — see each tool's folder for details.
-
+MIT
