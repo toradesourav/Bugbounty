@@ -1,48 +1,49 @@
-# Robots.txt & Sitemap Parser
+# IOC Extractor
 
-Fetches and parses a site's `robots.txt` and `sitemap.xml` — a
-classic, zero-noise recon step. `Disallow` entries often point at
-admin panels, staging areas, or internal tools the site owner didn't
-want indexed (but which are still perfectly reachable if you request
-them directly), and sitemaps hand you the site's structure for free.
+Extracts Indicators of Compromise from arbitrary text (incident
+reports, logs, threat intel feeds, pasted phishing emails, etc.):
+IPv4/IPv6 addresses, domains, URLs, email addresses, and file hashes
+(MD5/SHA1/SHA256). The standard first step in SOC triage — turning a
+wall of unstructured text into a clean, deduplicated list you can
+feed into a blocklist, SIEM, or threat-intel lookup.
 
 ## Requirements
-```
-pip install requests
-```
+Python 3 standard library only — no `pip install` needed.
 
 ## Usage
 ```bash
-# Fetch and parse both robots.txt and sitemap.xml
-python robots_sitemap_parser.py --url https://target.com
+# From a file
+python ioc_extractor.py --file incident_report.txt
 
-# Skip robots.txt, only parse the sitemap
-python robots_sitemap_parser.py --url https://target.com --sitemap-only
+# From stdin
+cat suspicious.log | python ioc_extractor.py
+
+# Only specific IOC types
+python ioc_extractor.py --file report.txt --types ip,domain,sha256
+# (use ipv4/ipv6/email/url/domain/md5/sha1/sha256 as needed)
+
+# Save combined results to a file
+python ioc_extractor.py --file report.txt --output iocs.txt
 ```
 
-## What it does
-1. Fetches `robots.txt`, parses every `Disallow`/`Allow` entry per
-   user-agent, and flags paths containing interesting keywords
-   (`admin`, `internal`, `staging`, `config`, `backup`, `debug`, etc.).
-2. Follows any `Sitemap:` reference found in `robots.txt` (falls back
-   to guessing `/sitemap.xml` if none is declared).
-3. Parses the sitemap — including **sitemap index files** that point
-   to multiple nested sitemaps, which it recurses into automatically
-   (up to 2 levels deep) — and lists every URL found.
+## IOC types extracted
+IPv4, IPv6, email addresses, URLs, domains, MD5, SHA1, SHA256 hashes.
 
-## Notes
-- A `Disallow` entry is a **hint**, not proof of anything sensitive —
-  always verify manually what's actually at that path before treating
-  it as a finding.
-- Sitemap parsing is namespace-agnostic, so it works whether the XML
-  declares the standard sitemap namespace or not.
+## Notes on the domain list
+Domains that appear *inside* an already-captured URL or email address
+are filtered out of the standalone domain list — otherwise every URL
+and email would also show up redundantly as a "domain" finding. The
+domain list only shows domains mentioned on their own (e.g. in
+running prose, not as part of a link).
 
 ## Status
 Part of a personal 100-tool security scripting project. Verified
-end-to-end against a local mock server with a `robots.txt` containing
-4 Disallow entries (3 flagged for interesting keywords) and a sitemap
-index file that nests 2 further sitemaps — recursion correctly
-aggregated all 3 URLs across both nested files.
+against a realistic synthetic incident report containing all 8 IOC
+types mixed together (IPv4, IPv6, 2 emails, 3 URLs, MD5/SHA1/SHA256
+hashes) — all 12 IOCs correctly extracted with zero false positives,
+and the domain-deduplication logic correctly suppressed domains
+already captured inside URLs/emails while still correctly extracting
+domains mentioned standalone in a separate test.
 
 ## License
 MIT
