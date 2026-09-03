@@ -1,63 +1,45 @@
-# WAF Detector
+# SSL Certificate Analyzer
 
-Identifies which Web Application Firewall (if any) sits in front of a
-target, using two techniques:
+Connects to a host over TLS and analyzes the presented certificate:
+expiry (with days-remaining countdown), issuer/subject, Subject
+Alternative Names, signature algorithm, self-signed detection, and
+the negotiated TLS protocol/cipher.
 
-1. **Passive header/cookie fingerprinting** — checks the normal
-   response for WAF-specific signatures (Cloudflare's `cf-ray`,
-   Sucuri's `X-Sucuri-ID`, Incapsula's `visid_incap` cookie, etc.).
-2. **Active provocation** — sends a deliberately malicious-looking
-   request (classic SQLi + XSS + path-traversal payload combined) and
-   checks whether the WAF blocks it with a recognizable challenge/
-   block page. Many WAFs stay completely invisible on clean requests
-   and only reveal themselves when provoked.
-
-Knowing the WAF in front of a target tells you what evasion research
-to focus on, and sets realistic expectations for how aggressive
-scanning can be before you get blocked entirely.
-
-## ⚠️ Authorized use only
-Only use against systems you own or have explicit written permission
-to test. The provocation payload is designed to trigger WAF rules,
-not to exploit anything — but sending it still counts as an attack
-signature on the wire, so don't run this against anything you're not
-authorized to test.
+Handles the common gotcha where Python's built-in
+`ssl.getpeercert()` returns an **empty dict** for any certificate
+that isn't independently trust-chain-verified (self-signed, expired,
+wrong hostname) — exactly the kind of cert you most want to inspect.
+This tool always pulls the raw DER bytes and parses them directly
+with the `cryptography` library instead, regardless of trust status.
 
 ## Requirements
 ```
-pip install requests
+pip install cryptography
 ```
 
 ## Usage
 ```bash
-python waf_detector.py --url https://target.com
-
-# Passive-only (skip sending the malicious provocation payload)
-python waf_detector.py --url https://target.com --skip-provocation
+python ssl_analyzer.py --host target.com
+python ssl_analyzer.py --host target.com --port 8443
 ```
 
-## WAFs detected
-Cloudflare, Sucuri, Akamai, Imperva/Incapsula, AWS WAF/CloudFront,
-F5 BIG-IP ASM, Barracuda, Fortinet FortiWeb, Citrix NetScaler,
-Wordfence, and generic ModSecurity-style block pages.
-
-## Notes
-- A clean/no-match result does **not** guarantee there's no WAF —
-  some are configured to be silent, or use signatures not in this
-  tool's list. Treat "no WAF detected" as "no *known* WAF detected."
-- A status-code change on the provocation request (e.g. 200 → 403)
-  without a specific signature match is still a useful signal: some
-  filter/WAF is present, just not one this tool recognizes by name.
+## What it checks
+- Expiry status: expired / expiring within 14 days / within 30 days / OK
+- Self-signed detection (subject CN == issuer CN)
+- Subject Alternative Names (and a warning if there are none —
+  reliance on deprecated CN-only matching)
+- Weak signature algorithm (MD5/SHA-1 — collision-vulnerable)
+- Deprecated TLS protocol version negotiated (SSLv2/3, TLS 1.0/1.1)
+- Cipher suite and key strength
 
 ## Status
 Part of a personal 100-tool security scripting project. Verified
-against three local mock scenarios: a Cloudflare-style WAF (correctly
-identified via headers, cookies, and a status-code change on the
-malicious payload), a plain server with no WAF (correctly reported no
-match), and an unlisted/generic WAF that blocks with a 403 but no
-recognizable signature (correctly flagged as "a filter is present,
-just not a recognized one" rather than a false negative or false
-positive).
+end-to-end against a real local TLS server: generated a genuine
+self-signed X.509 certificate (RSA-2048, SHA-256) expiring in 10 days,
+served it over an actual `ssl`-wrapped socket, and ran the analyzer
+against it live. Correctly detected: self-signed status, the
+near-expiry warning (9 days remaining), the SAN entry, TLS 1.3
+negotiation, and the cipher suite in use.
 
 ## License
 MIT
