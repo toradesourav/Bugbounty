@@ -1,49 +1,43 @@
-# IOC Extractor
+# IP Geolocation + ASN Lookup
 
-Extracts Indicators of Compromise from arbitrary text (incident
-reports, logs, threat intel feeds, pasted phishing emails, etc.):
-IPv4/IPv6 addresses, domains, URLs, email addresses, and file hashes
-(MD5/SHA1/SHA256). The standard first step in SOC triage — turning a
-wall of unstructured text into a clean, deduplicated list you can
-feed into a blocklist, SIEM, or threat-intel lookup.
+Looks up geolocation and ASN (Autonomous System Number) info for an
+IP address using [ip-api.com](https://ip-api.com)'s free endpoint —
+no API key required. Useful for identifying hosting providers/cloud
+regions, spotting CDN-fronted IPs, and mapping a target's
+infrastructure footprint across multiple discovered IPs.
 
 ## Requirements
-Python 3 standard library only — no `pip install` needed.
+```
+pip install requests
+```
 
 ## Usage
 ```bash
-# From a file
-python ioc_extractor.py --file incident_report.txt
+# Single IP
+python ip_geolocation.py --ip 8.8.8.8
 
-# From stdin
-cat suspicious.log | python ioc_extractor.py
-
-# Only specific IOC types
-python ioc_extractor.py --file report.txt --types ip,domain,sha256
-# (use ipv4/ipv6/email/url/domain/md5/sha1/sha256 as needed)
-
-# Save combined results to a file
-python ioc_extractor.py --file report.txt --output iocs.txt
+# Batch from a file
+python ip_geolocation.py --ip-list ips.txt --delay 1.5
 ```
 
-## IOC types extracted
-IPv4, IPv6, email addresses, URLs, domains, MD5, SHA1, SHA256 hashes.
+## What it shows
+City/region/country/zip, lat/lon coordinates, ISP, organization, and
+ASN (with the AS name) — useful for spotting things like "this IP
+resolves to Cloudflare's AS, so the origin server is hidden behind
+their proxy" or grouping a subdomain list by hosting provider.
 
-## Notes on the domain list
-Domains that appear *inside* an already-captured URL or email address
-are filtered out of the standalone domain list — otherwise every URL
-and email would also show up redundantly as a "domain" finding. The
-domain list only shows domains mentioned on their own (e.g. in
-running prose, not as part of a link).
+## Notes
+- Uses the free tier of ip-api.com, which is rate-limited (default
+  `--delay 1.5` between batch requests to stay well under it — check
+  ip-api.com's current limits since these can change).
+- No API key needed for basic lookups; ip-api.com does offer a paid
+  tier with higher limits and HTTPS if you need that.
 
 ## Status
-Part of a personal 100-tool security scripting project. Verified
-against a realistic synthetic incident report containing all 8 IOC
-types mixed together (IPv4, IPv6, 2 emails, 3 URLs, MD5/SHA1/SHA256
-hashes) — all 12 IOCs correctly extracted with zero false positives,
-and the domain-deduplication logic correctly suppressed domains
-already captured inside URLs/emails while still correctly extracting
-domains mentioned standalone in a separate test.
+Part of a personal 100-tool security scripting project. Response
+parsing verified against ip-api.com's documented JSON schema for both
+the success case (full geolocation/ASN data) and the failure case
+(invalid IP query) — both handled correctly without crashing.
 
 ## License
 MIT
