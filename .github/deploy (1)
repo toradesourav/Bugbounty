@@ -1,0 +1,103 @@
+name: Deploy Node.js Docker app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent overlapping deployments; keep only the latest queued deployment.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout deployment metadata
+        uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          # Add this repository/environment variable after verifying the host key:
+          # FINGERPRINT: ${{ secrets.SSH_HOST_FINGERPRINT }}
+          # fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
+          envs: DEPLOY_SHA,DEPLOY_BRANCH,DEPLOY_DIR
+          command_timeout: 10m
+          script: |
+            set -Eeuo pipefail
+
+            on_error() {
+              rc=$?
+              echo "ERROR: remote deployment failed (exit ${rc}) at line ${LINENO}." >&2
+              if [ -n "${DEPLOY_DIR:-}" ] && [ -d "$DEPLOY_DIR" ]; then
+                cd "$DEPLOY_DIR" || true
+                echo "--- Docker Compose status ---" >&2
+                docker compose ps --all >&2 || true
+                echo "--- Recent container logs (last 100 lines) ---" >&2
+                docker compose logs --tail=100 >&2 || true
+              fi
+              exit "$rc"
+            }
+            trap on_error ERR
+
+            : "${DEPLOY_SHA:?DEPLOY_SHA was not provided}"
+            : "${DEPLOY_BRANCH:?DEPLOY_BRANCH was not provided}"
+            : "${DEPLOY_DIR:?Set the DEPLOY_DIR repository/environment variable}"
+
+            if [ ! -d "$DEPLOY_DIR/.git" ]; then
+              echo "ERROR: $DEPLOY_DIR is not a Git working tree." >&2
+              exit 2
+            fi
+            cd "$DEPLOY_DIR"
+
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "ERROR: Docker is not installed or not on PATH." >&2
+              exit 2
+            fi
+            docker compose version
+
+            echo "Fetching origin/$DEPLOY_BRANCH..."
+            git fetch --prune origin "$DEPLOY_BRANCH"
+            # This intentionally makes the server checkout match the triggering commit.
+            # Do not keep uncommitted production-side changes in this directory.
+            git checkout -B "$DEPLOY_BRANCH" "$DEPLOY_SHA"
+            git reset --hard "$DEPLOY_SHA"
+
+            echo "Validating Compose configuration..."
+            docker compose config --quiet
+
+            echo "Building and starting services..."
+            docker compose up -d --build --remove-orphans
+
+            echo "Waiting briefly for containers to start..."
+            sleep 5
+            docker compose ps --all
+
+            # Detect containers that exited immediately after startup.
+            while IFS= read -r container_id; do
+              [ -n "$container_id" ] || continue
+              state=$(docker inspect --format '{{.State.Status}}' "$container_id")
+              if [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+                echo "ERROR: container $container_id entered state '$state'." >&2
+                docker compose logs --tail=100 >&2 || true
+                exit 1
+              fi
+            done < <(docker compose ps --all --quiet)
+
+            echo "Deployment completed: $DEPLOY_SHA"
